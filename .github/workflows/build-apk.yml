@@ -1,0 +1,47 @@
+name: build-apk
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: 'npm' }
+      - uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - name: 接受 SDK 许可
+        run: yes | sdkmanager --licenses || true
+      - name: 装 platform 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - run: npm ci
+      - run: npm run build
+      # 关键：android/ 已在仓库里，不要再跑 cap add
+      - run: npx cap sync android
+      # Windows 提交会丢可执行位
+      - run: chmod +x android/gradlew
+      - run: cd android && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: 重命名带时间戳
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+            out/app-debug-$(date -u +%Y%m%d-%H%M).apk
+          # 再留一份固定名：jsDelivr 的 @apk/app-debug.apk 这个地址还得能用，
+          # 否则手机收藏的链接每次构建都会 404
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/app-debug.apk
+      - name: 推到 apk 分支
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: apk
+          publish_dir: ./out
+          destination_dir: .
+          # 每次重建分支（单 commit、无历史）：APK 是产物，进历史等于仓库无限膨胀，
+          # 攒到几百 MB jsDelivr 就不服务了。要看旧包用 Actions 的 artifact。
+          force_orphan: true

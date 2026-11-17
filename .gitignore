@@ -1,0 +1,18 @@
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+
+# 本地工作记录（memory 里有协作细节），不进仓库
+.workbuddy/
+
+# scripts/llm-test.mjs 的 token 用量账本
+.llm-usage.local.json
+
+# 原生工程要进仓库：GitHub Actions 靠它打 APK。
+# 构建产物由 android/.gitignore 自己挡掉（.gradle/ build/ assets/public 等）。
