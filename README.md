@@ -171,9 +171,18 @@ CI 上有三个坑，都已经在 workflow 里绕过了：
 手机下载：
 
 ```
-https://cdn.jsdelivr.net/gh/<用户名>/<仓库名>@apk/app-debug.apk                        # 总是最新
-https://cdn.jsdelivr.net/gh/<用户名>/<仓库名>@apk/app-debug-20261117-1420.apk         # 某一次
+# 总是最新（推荐 gcore 入口，本机实测 4.4 MB 完整下载）
+https://gcore.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug.apk
+
+# 官方主域（部分网络不通，能连就用）
+https://cdn.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug.apk
+
+# 某一次构建（文件名里的时间是 UTC）
+https://gcore.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug-20261117-1457.apk
 ```
+
+> 实测：`cdn.jsdelivr.net` 与 `raw.githubusercontent.com` 在本地网络 TLS 握手失败，
+> `gcore.jsdelivr.net` 正常。三个是同一个 CDN 的不同入口，内容一致。
 
 - **固定名那份是必须的**：只留时间戳的话，收藏下来的地址每次构建都会 404
 - **`force_orphan` 也是必须的**：APK 进 git 历史等于仓库无限膨胀，攒到几百 MB jsDelivr 就不服务了
