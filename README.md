@@ -152,6 +152,16 @@ chmod +x android/gradlew        # Windows 提交会丢可执行位
 cd android && ./gradlew assembleDebug --no-daemon
 ```
 
+CI 上有三个坑，都已经在 workflow 里绕过了：
+
+1. **不要用 `android-actions/setup-android@v3`**：它会执行 `sdkmanager tools`，而 `tools` 包在新版
+   SDK 里已废弃 → `Failed to find package 'tools'` → 步骤直接 exit 1。ubuntu-latest 本来就预装了
+   SDK（`ANDROID_HOME=/usr/local/lib/android/sdk`），直接用即可。
+2. **JDK 必须是 21，不是 17**：`android/app/capacitor.build.gradle` 写死
+   `JavaVersion.VERSION_21`，而这个文件每次 `cap sync` 都会重写，改不动。
+3. **`gradlew` 的可执行位**：Windows 提交会丢（index 里是 100644）。除了 CI 里 `chmod +x`，
+   本地也用 `git update-index --chmod=+x android/gradlew` 把索引里的位改成 100755。
+
 出包之后：
 
 1. `upload-artifact` 存一份原名 `app-debug.apk`（Actions 页面可下载；要看旧包靠它）
