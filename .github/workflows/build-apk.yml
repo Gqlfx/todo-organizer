@@ -11,11 +11,18 @@ jobs:
         with: { node-version: '22', cache: 'npm' }
       - uses: actions/setup-java@v4
         with: { distribution: 'temurin', java-version: '17' }
-      - uses: android-actions/setup-android@v3
-      - name: 接受 SDK 许可
-        run: yes | sdkmanager --licenses || true
-      - name: 装 platform 36
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      # 不用 android-actions/setup-android@v3：它会执行 `sdkmanager tools`，
+      # 而 'tools' 包在新版 SDK 里已废弃 → Failed to find package 'tools' → exit 1。
+      # ubuntu-latest 本来就预装了 SDK（ANDROID_HOME=/usr/local/lib/android/sdk）。
+      - name: 准备 Android SDK
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMGR="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMGR" ] || SDKMGR=$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager | head -1)
+          echo "ANDROID_HOME=$SDK"
+          echo "sdkmanager=$SDKMGR"
+          yes | "$SDKMGR" --licenses > /dev/null || true
+          "$SDKMGR" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
       - run: npm ci
       - run: npm run build
       # 关键：android/ 已在仓库里，不要再跑 cap add
