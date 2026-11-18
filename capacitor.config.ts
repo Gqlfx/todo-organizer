@@ -17,6 +17,14 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    /**
+     * Android 15+ 强制 edge-to-edge，WebView 会铺到状态栏和导航栏下面。
+     * 默认的 'css' 靠 env(safe-area-inset-*)，而安卓 WebView 对它的支持不稳（常返回 0）。
+     * 'native' 让 Capacitor 直接给 WebView 设 padding，不依赖 CSS 能力。
+     */
+    SystemBars: {
+      insetsHandling: 'native',
+    },
   },
 }
 

@@ -108,6 +108,9 @@ console.table((await __todo.db.tasks.toArray()).map((t) => ({
 - 排序：档位 now > today > week > later → 截止升序（无截止排最后）→ 估时升序
 - 两轮装填：先把整块（≥30 分钟）装任务，剩余短任务回填碎片（10–30 分钟）
 - 排到当天容量为止，画「今天到此为止」，线下任务标「明天」
+- 顶部第二行有三态：`今天还能排 X` / `今天排满了`（容量用完）/ `今天已收工`
+  （离 `work_end` 不足 `min_gap_min` 就算收工，右侧改显示「明天 08:00 开始」）。
+  22:58 时不会再写「还能排 2 分钟」——那个数字排不下任何任务，只会误导
 - `plan_date`（我打算哪天做）：`null` = 今天；`<= 今天`（含逾期）都会出现在今天的队列
 - 固定事件缺 `end_at` 时按 `est_min ?? 60 分钟` 兜底；点固定行右侧时间可改结束时刻，改完 `is_locked`
 - `is_fixed` 但连 `start_at` 都没有的事件，降级成普通任务卡，不会消失
@@ -214,6 +217,7 @@ https://gcore.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug-20261117-1457.a
 | 模型请求 | `/api/llm/*` 走 Vite proxy，key 在 Node 侧 | 直连 `api.deepseek.com`，`Authorization` 用设置页存的 key |
 | key 从哪来 | `.env.local` 的 `DEEPSEEK_API_KEY` | 设置 → AI Key（存 IndexedDB，导出备份时写成空） |
 | 导出备份 | `Blob + <a download>` | 写进 app 缓存目录，再交给系统分享面板 |
+| 系统栏安全区 | 不需要（浏览器有边框） | `SystemBars.insetsHandling = 'native'`，原生给 WebView 加内边距 |
 
 - `capacitor.config.ts` 开了 `CapacitorHttp`：原生里 fetch 由原生代发，绕开 CORS。
   副作用是**原生下只认绝对 URL**——`llm.ts` 里做了双分支，别往原生分支里塞相对路径。

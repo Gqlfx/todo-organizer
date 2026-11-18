@@ -34,10 +34,16 @@ export function QueuePage({ settings }: { settings: Settings }) {
    * 不取小的话，晚上 11 点页面还会说「还能排 1 小时」。
    */
   const workEndMin = parseClock(settings.work_end) ?? 23 * 60
-  const remainingMin = Math.max(
-    0,
-    Math.min(result.capacityMin - result.usedMin, workEndMin - minutesOfDay(now)),
-  )
+  const minutesLeftToday = workEndMin - minutesOfDay(now)
+  const capacityLeft = result.capacityMin - result.usedMin
+  const remainingMin = Math.max(0, Math.min(capacityLeft, minutesLeftToday))
+
+  /**
+   * 22:58 时离 work_end 只剩 2 分钟：连一个碎片都放不下。
+   * 这时候再写「今天还能排 2 分钟」就是假信息——用户照着这个数交任务，
+   * 只会看到它被打到「今天到此为止」下面。剩不到一个最小空档，就直接算今天收工。
+   */
+  const closedForToday = minutesLeftToday < Math.max(settings.min_gap_min, 1)
 
   const tomorrowKey = dateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))
   const firstOverflow = result.overflow[0]
@@ -98,9 +104,19 @@ export function QueuePage({ settings }: { settings: Settings }) {
           </div>
 
           <div className="mt-1 flex items-baseline justify-between gap-3 text-[11px] text-ink-faint">
-            <span className="tabular-nums">今天还能排 {formatHours(remainingMin)}</span>
             <span className="tabular-nums">
-              {result.endsAtMin !== null ? `预计 ${formatClock(result.endsAtMin)} 收工` : '还没开始排'}
+              {closedForToday
+                ? '今天已收工'
+                : capacityLeft <= 0
+                  ? '今天排满了'
+                  : `今天还能排 ${formatHours(remainingMin)}`}
+            </span>
+            <span className="tabular-nums">
+              {closedForToday
+                ? `明天 ${settings.work_start} 开始`
+                : result.endsAtMin !== null
+                  ? `预计 ${formatClock(result.endsAtMin)} 收工`
+                  : '还没开始排'}
             </span>
           </div>
 
