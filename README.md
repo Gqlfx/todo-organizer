@@ -175,24 +175,27 @@ CI 上有三个坑，都已经在 workflow 里绕过了：
 2. 拷两份进 `out/`：`app-debug-YYYYMMDD-HHMM.apk`（带构建时间）+ `app-debug.apk`（固定名）
 3. `peaceiris/actions-gh-pages@v4` 推到 `apk` 分支，`force_orphan: true` 每次重建
 
-手机下载：
+手机下载（**验新功能请用时间戳那个**）：
 
 ```
-# 总是最新（推荐 gcore 入口，本机实测 4.4 MB 完整下载）
+# 本次构建（文件名里的时间是 UTC）
+https://gcore.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug-20261123-1408.apk
+
+# 固定名（可能落后最多 12 小时，见下）
 https://gcore.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug.apk
 
-# 官方主域（部分网络不通，能连就用）
+# 官方主域（本地网络 TLS 握手失败，能连才用）
 https://cdn.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug.apk
-
-# 某一次构建（文件名里的时间是 UTC）
-https://gcore.jsdelivr.net/gh/Gqlfx/todo-organizer@apk/app-debug-20261117-1457.apk
 ```
 
-> 实测：`cdn.jsdelivr.net` 与 `raw.githubusercontent.com` 在本地网络 TLS 握手失败，
-> `gcore.jsdelivr.net` 正常。三个是同一个 CDN 的不同入口，内容一致。
-
-- **固定名那份是必须的**：只留时间戳的话，收藏下来的地址每次构建都会 404
-- **`force_orphan` 也是必须的**：APK 进 git 历史等于仓库无限膨胀，攒到几百 MB jsDelivr 就不服务了
+- **固定名有 CDN 缓存，不可靠**：文件内容变了但 URL 没变，gcore / testingcf 会继续返回旧包
+  （`s-maxage=43200`，12 小时）。jsDelivr 的 purge 只覆盖 CF/FY，管不到 gcore。
+  2026-11-23 实测：新包 4,404,289 字节，固定名在 gcore 上仍返回 4,403,505 的旧包。
+  **验收新功能一定用时间戳名**；固定名只适合「随便装个能用的」。
+- 上面那条时间戳链接只对应这一次构建（`force_orphan` 会把旧文件删掉，下次构建后它就 404）。
+  查当前该用哪个：
+  `gh api "repos/Gqlfx/todo-organizer/contents/?ref=apk" --jq '.[].name'`
+- **`force_orphan` 是必须的**：APK 进 git 历史等于仓库无限膨胀，攒到几百 MB jsDelivr 就不服务了
 - debug 包必须 < 20 MB；推送后等 3–5 分钟再点链接
 - `permissions: contents: write` 是 push 到分支的前提，少了会 403
 
