@@ -112,6 +112,16 @@ export function nextFittingDate(task: Task, tasks: Task[], settings: Settings, f
  * → est_min 升序 → created_at 升序（同批录入保持输入顺序）。
  */
 export function compareTasks(a: Task, b: Task): number {
+  /**
+   * 用户拖过的顺序优先：两条都有 rank 就按 rank 排；只有一条有，它排前面。
+   * 没拖过的一律 null（含老数据里的 undefined），继续按 bucket / 截止 / 估时排在后面。
+   */
+  const rankA = typeof a.queue_rank === 'number' ? a.queue_rank : null
+  const rankB = typeof b.queue_rank === 'number' ? b.queue_rank : null
+  if (rankA !== null && rankB !== null) return rankA - rankB
+  if (rankA !== null) return -1
+  if (rankB !== null) return 1
+
   const byBucket = BUCKET_ORDER[a.bucket] - BUCKET_ORDER[b.bucket]
   if (byBucket !== 0) return byBucket
 

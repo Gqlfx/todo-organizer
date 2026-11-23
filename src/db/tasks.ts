@@ -158,3 +158,33 @@ export async function setFixedEnd(task: Task, minutes: number, now: Date): Promi
     is_locked: true,
   })
 }
+
+/**
+ * 估时快捷编辑：对齐到 5 分钟，最小 5。
+ * 0 分钟的卡片在装填里会变成「零长度」的怪东西，所以下限是 5 而不是 0。
+ */
+export async function setEstMin(taskId: string, minutes: number): Promise<void> {
+  const value = Math.max(5, Math.min(1440, Math.round(minutes / 5) * 5))
+  await db.tasks.update(taskId, { est_min: value })
+}
+
+/**
+ * 拖拽落位：按传入的 id 顺序写 `queue_rank`。
+ *
+ * 只写这一批（都是今天队列里的候选），没被拖过的保持 null、继续按原规则排在后面——
+ * 所以「拖过的东西在拖出来的位置，新东西还是按紧急程度插在后面」。
+ *
+ * `slot_source='user'` + `is_locked=true` 是给以后的自动重排留的标记：
+ * 用户亲手定过顺序，就不该被算法再动。
+ */
+export async function setQueueOrder(orderedIds: string[]): Promise<void> {
+  await db.transaction('rw', db.tasks, async () => {
+    for (let index = 0; index < orderedIds.length; index += 1) {
+      await db.tasks.update(orderedIds[index], {
+        queue_rank: index,
+        slot_source: 'user',
+        is_locked: true,
+      })
+    }
+  })
+}

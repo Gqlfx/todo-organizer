@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Task } from '../../db/db'
 import type {
   FixedBlock,
@@ -9,6 +9,7 @@ import type {
 } from '../../lib/queue'
 import { upcomingDateOf } from '../../lib/queue'
 import { formatClock, formatHours, formatMonthDay, parseClock } from '../../lib/time'
+import { useDragOrder, type DragHandlers } from './useDragOrder'
 
 type Row =
   | { type: 'fixed'; block: FixedBlock }
@@ -26,6 +27,8 @@ interface QueueListProps {
   onDefer: (task: Task) => void
   onPullToday: (task: Task) => void
   onEditFixedEnd: (task: Task, minutes: number) => void
+  onSetEst: (task: Task, minutes: number) => void
+  onReorder: (orderedIds: string[]) => void
 }
 
 /**
@@ -117,41 +120,137 @@ function GapLine({ gap }: { gap: QueueGap }) {
   )
 }
 
+const EST_PRESETS = [5, 15, 30, 60]
+
+/** 点开卡片后展开的估时行：点一下即存，不收确认 */
+function EstRow({ value, onPick }: { value: number; onPick: (minutes: number) => void }) {
+  const [custom, setCustom] = useState<string | null>(null)
+
+  const submitCustom = () => {
+    if (custom === null) return
+    const minutes = Number(custom)
+    setCustom(null)
+    if (!Number.isFinite(minutes) || minutes <= 0) return
+    onPick(minutes)
+  }
+
+  return (
+    <div
+      className="mt-2 flex items-center gap-1 border-t border-line/70 pt-2"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {custom === null ? (
+        <>
+          {EST_PRESETS.map((minutes) => (
+            <button
+              key={minutes}
+              type="button"
+              onClick={() => onPick(minutes)}
+              className={`min-w-[38px] rounded-md px-2 py-1.5 text-[11.5px] tabular-nums ${
+                value === minutes ? 'bg-accent text-white' : 'bg-canvas text-ink-soft'
+              }`}
+            >
+              {minutes}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setCustom(String(value))}
+            className="ml-0.5 rounded-md px-2 py-1.5 text-[11px] text-ink-faint"
+          >
+            自定义
+          </button>
+        </>
+      ) : (
+        <>
+          <input
+            type="number"
+            inputMode="numeric"
+            autoFocus
+            value={custom}
+            onChange={(event) => setCustom(event.target.value)}
+            onBlur={submitCustom}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') submitCustom()
+              if (event.key === 'Escape') setCustom(null)
+            }}
+            className="w-16 rounded-md bg-canvas px-2 py-1 text-[11.5px] tabular-nums"
+          />
+          <span className="text-[11px] text-ink-faint">分钟</span>
+        </>
+      )}
+    </div>
+  )
+}
+
 function TaskCard({
   item,
   showUndetermined,
+  expanded,
+  dragging,
+  offsetY,
+  onActivate,
   onComplete,
+  onSetEst,
+  registerCard,
+  handlers,
 }: {
   item: PlacedTask
   showUndetermined: boolean
+  expanded: boolean
+  dragging: boolean
+  offsetY: number
+  onActivate: () => void
   onComplete: (task: Task) => void
+  onSetEst: (minutes: number) => void
+  registerCard: (id: string, el: HTMLElement | null) => void
+  handlers: (id: string) => DragHandlers
 }) {
+  const task = item.task
+
   return (
-    <div className="flex gap-2.5 rounded-xl border border-line bg-card px-3 py-2.5">
-      <button
-        type="button"
-        aria-label={`完成：${item.task.title}`}
-        onClick={() => onComplete(item.task)}
-        className="mt-[3px] h-[18px] w-[18px] shrink-0 rounded-full border-[1.5px] border-ink-faint/70 active:bg-accent-soft"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="min-w-0 flex-1 break-words text-[13.5px] leading-snug">
-            {item.task.title}
-          </span>
-          <span className="shrink-0 text-[11.5px] tabular-nums text-ink-faint">
-            {item.estMin} 分钟
-          </span>
-        </div>
-        <div className="mt-1 flex items-baseline gap-1.5 text-[11.5px] tabular-nums text-ink-soft">
-          <span>
-            {formatClock(item.startMin)}–{formatClock(item.endMin)}
-          </span>
-          {showUndetermined ? (
-            <span className="text-[10.5px] text-warn/85">未定时间</span>
-          ) : null}
+    <div
+      ref={(el) => registerCard(task.id, el)}
+      {...handlers(task.id)}
+      onClick={onActivate}
+      style={dragging ? { transform: `translateY(${offsetY}px)` } : undefined}
+      className={`select-none rounded-xl border bg-card px-3 py-2.5 ${
+        dragging
+          ? 'relative z-20 border-accent/60 shadow-lg'
+          : expanded
+            ? 'border-accent/40'
+            : 'border-line'
+      }`}
+    >
+      <div className="flex gap-2.5">
+        <button
+          type="button"
+          aria-label={`完成：${task.title}`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onComplete(task)
+          }}
+          className="mt-[3px] h-[18px] w-[18px] shrink-0 rounded-full border-[1.5px] border-ink-faint/70 active:bg-accent-soft"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="min-w-0 flex-1 break-words text-[13.5px] leading-snug">{task.title}</span>
+            <span className="shrink-0 text-[11.5px] tabular-nums text-ink-faint">
+              {item.estMin} 分钟
+            </span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5 text-[11.5px] tabular-nums text-ink-soft">
+            <span>
+              {formatClock(item.startMin)}–{formatClock(item.endMin)}
+            </span>
+            {showUndetermined ? (
+              <span className="text-[10.5px] text-warn/85">未定时间</span>
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {expanded ? <EstRow value={item.estMin} onPick={onSetEst} /> : null}
     </div>
   )
 }
@@ -327,8 +426,16 @@ export function QueueList({
   onDefer,
   onPullToday,
   onEditFixedEnd,
+  onSetEst,
+  onReorder,
 }: QueueListProps) {
   const rows = buildRows(result)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const placedIds = useMemo(() => result.placed.map((item) => item.task.id), [result.placed])
+  const { dragId, offsetY, justDragged, registerCard, handlers } = useDragOrder(
+    placedIds,
+    onReorder,
+  )
   const unplaced = result.overflow.length + result.waitingWeek.length
   const isEmpty =
     rows.length === 0 &&
@@ -358,17 +465,28 @@ export function QueueList({
                 onEditEnd={onEditFixedEnd}
               />
             )
-          if (row.type === 'task')
+          if (row.type === 'task') {
+            const taskId = row.item.task.id
             return (
               <TaskCard
-                key={`task-${row.item.task.id}`}
+                key={`task-${taskId}`}
                 item={row.item}
-                showUndetermined={
-                  row.item.task.parse_confidence === 0 && !pendingIds.has(row.item.task.id)
-                }
+                showUndetermined={row.item.task.parse_confidence === 0 && !pendingIds.has(taskId)}
+                expanded={expandedId === taskId}
+                dragging={dragId === taskId}
+                offsetY={dragId === taskId ? offsetY : 0}
+                onActivate={() => {
+                  // 刚拖完的那次 click 不算数，否则一松手就展开
+                  if (justDragged()) return
+                  setExpandedId((prev) => (prev === taskId ? null : taskId))
+                }}
                 onComplete={onComplete}
+                onSetEst={(minutes) => onSetEst(row.item.task, minutes)}
+                registerCard={registerCard}
+                handlers={handlers}
               />
             )
+          }
           return <GapLine key={`gap-${index}-${row.gap.startMin}`} gap={row.gap} />
         })}
       </div>

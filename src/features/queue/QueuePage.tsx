@@ -6,7 +6,9 @@ import {
   createTasksFromLines,
   deferTask,
   pullTaskToToday,
+  setEstMin,
   setFixedEnd,
+  setQueueOrder,
   uncompleteTask,
   useTasks,
 } from '../../db/tasks'
@@ -91,6 +93,8 @@ export function QueuePage({ settings }: { settings: Settings }) {
   const handleDefer = (task: Task) => void deferTask(task, tasks ?? [], settings, now)
   const handlePullToday = (task: Task) => void pullTaskToToday(task.id)
   const handleEditFixedEnd = (task: Task, minutes: number) => void setFixedEnd(task, minutes, now)
+  const handleSetEst = (task: Task, minutes: number) => void setEstMin(task.id, minutes)
+  const handleReorder = (orderedIds: string[]) => void setQueueOrder(orderedIds)
 
   return (
     <div>
@@ -153,6 +157,8 @@ export function QueuePage({ settings }: { settings: Settings }) {
           onDefer={handleDefer}
           onPullToday={handlePullToday}
           onEditFixedEnd={handleEditFixedEnd}
+          onSetEst={handleSetEst}
+          onReorder={handleReorder}
         />
       </main>
     </div>
