@@ -293,11 +293,71 @@ export function computeQueue(tasks: Task[], settings: Settings, now: Date): Queu
   let usedMin = 0
   let exhausted = false
 
-  const take = (gap: QueueGap, task: Task, estMin: number): void => {
-    placed.push({ task, startMin: gap.startMin, endMin: gap.startMin + estMin, estMin })
-    gap.startMin += estMin
+  /**
+   * 软任务的「不早于」锚点（今天的分钟数）。not_before 存的是 "HH:mm"，
+   * 带日期的旧值只在日期等于今天时才生效，否则视为没有锚点。
+   */
+  const anchorOf = (task: Task): number | null => {
+    if (!task.not_before) return null
+    const parsed = parseDateTimeValue(task.not_before)
+    if (!parsed) return null
+    if (parsed.dateKey && parsed.dateKey !== todayKey) return null
+    return parsed.minutes
+  }
+
+  /**
+   * 这个任务能从这个空档的哪一刻开始：起点取 max(空档起点, not_before)。
+   * 锚点晚于空档起点时，前面那段就空着——**不做回填**：
+   * 你说八点，就是八点，不给你从七点开始。
+   */
+  const startIn = (gap: QueueGap, task: Task, estMin: number): number | null => {
+    const anchor = anchorOf(task)
+    const start = anchor === null ? gap.startMin : Math.max(gap.startMin, anchor)
+    return start + estMin <= gap.endMin ? start : null
+  }
+
+  const take = (gap: QueueGap, task: Task, estMin: number, startMin: number): void => {
+    /**
+     * 锚点跳过的那一段不是「被占用」，只是「这条任务不能在那儿开始」。
+     * 把它切下来放回空档池——否则一个「晚上八点」的任务会把整条时间轴推到八点，
+     * 后面没有锚点的任务跟着遭殃。回执说的「不做回填」约束的是这条任务本身。
+     */
+    const leftover: QueueGap | null =
+      startMin > gap.startMin
+        ? {
+            startMin: gap.startMin,
+            endMin: startMin,
+            kind: classifyGap(startMin - gap.startMin, minGap),
+          }
+        : null
+
+    placed.push({ task, startMin, endMin: startMin + estMin, estMin })
+    gap.startMin = startMin + estMin
     gap.kind = classifyGap(gap.endMin - gap.startMin, minGap)
     usedMin += estMin
+
+    // 必须先把原空档的起点改掉再排序，否则新切的那段会和还没挪动的原空档并列在 900，
+    // 稳定排序保不住先后，后续任务会跳过前面那段、直接落到锚点之后。
+    if (leftover) {
+      gaps.push(leftover)
+      gaps.sort((a, b) => a.startMin - b.startMin)
+    }
+  }
+
+  /** 找第一个装得下的空档；blockOnly 时只在整块里找 */
+  const findSlot = (
+    task: Task,
+    estMin: number,
+    blockOnly: boolean,
+  ): { gap: QueueGap; start: number } | null => {
+    for (const gap of gaps) {
+      if (blockOnly && gap.kind !== 'block') continue
+      if (!canFit(gap.kind, gap.endMin - gap.startMin, estMin)) continue
+      const start = startIn(gap, task, estMin)
+      if (start === null) continue
+      return { gap, start }
+    }
+    return null
   }
 
   // 第一轮：按序装整块，放不下跳到下一个整块
@@ -308,15 +368,12 @@ export function computeQueue(tasks: Task[], settings: Settings, now: Date): Queu
       overflow.push({ task, reason: 'capacity', estMin: est })
       continue
     }
-    const gap = gaps.find(
-      (candidate) =>
-        candidate.kind === 'block' && canFit(candidate.kind, candidate.endMin - candidate.startMin, est),
-    )
-    if (!gap) {
+    const slot = findSlot(task, est, true)
+    if (!slot) {
       pending.push(task)
       continue
     }
-    take(gap, task, est)
+    take(slot.gap, task, est, slot.start)
   }
 
   // 第二轮：剩下的短任务回填碎片（10 分钟的取快递必须能塞进去）
@@ -327,14 +384,12 @@ export function computeQueue(tasks: Task[], settings: Settings, now: Date): Queu
       overflow.push({ task, reason: 'capacity', estMin: est })
       continue
     }
-    const gap = gaps.find((candidate) =>
-      canFit(candidate.kind, candidate.endMin - candidate.startMin, est),
-    )
-    if (!gap) {
+    const slot = findSlot(task, est, false)
+    if (!slot) {
       overflow.push({ task, reason: 'no-gap', estMin: est })
       continue
     }
-    take(gap, task, est)
+    take(slot.gap, task, est, slot.start)
   }
 
   placed.sort((a, b) => a.startMin - b.startMin)

@@ -10,6 +10,7 @@ export interface TaskSeed {
   due_at?: string | null
   bucket?: Bucket
   plan_date?: string | null
+  not_before?: string | null
 }
 
 /**
@@ -33,6 +34,7 @@ export function installDevBridge(): void {
         est_min: seed.est_min ?? null,
         due_at: seed.due_at ?? null,
         plan_date: seed.plan_date ?? null,
+        not_before: seed.not_before ?? null,
         bucket: seed.bucket ?? 'today',
         bucket_reason: null,
         manual_priority: false,

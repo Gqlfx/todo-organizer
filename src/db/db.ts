@@ -26,6 +26,12 @@ export interface Task {
   due_at: string | null
   /** "我打算哪天做"（YYYY-MM-DD）；null = 今天，没指定 */
   plan_date: string | null
+  /**
+   * 软任务的最早开始时刻 "HH:mm"（只表示当天的时刻，不带日期）。
+   * null = 没有锚点，从当前时刻起排。
+   * 由 notBefore.ts 的正则从原文抠出来，不经过模型；固定事件恒为 null（它用 start_at）。
+   */
+  not_before: string | null
 
   // 判定
   bucket: Bucket
@@ -198,6 +204,10 @@ db.version(3)
 
 // v4：新增 corrections 表，只追加不改；没有数据迁移
 db.version(4).stores(STORES_V4)
+
+// v5：Task 加 not_before（软任务的最早开始时刻）。
+// 只加字段、不改索引、不迁移数据：老任务读出来是 undefined，代码里一律按 null 处理。
+db.version(5).stores(STORES_V4)
 
 /** ISO 时间戳 → 本地日期键（不能直接切前 10 位：那是 UTC 日期，会跨天） */
 function localDayOf(iso: string | null | undefined): string | null {

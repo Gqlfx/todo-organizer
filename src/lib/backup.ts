@@ -219,7 +219,11 @@ export async function readBackupFile(file: File): Promise<BackupFile> {
     version,
     exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : '',
     data: {
-      tasks: tasks.map((task) => ({ ...task, plan_date: task.plan_date ?? null })),
+      tasks: tasks.map((task) => ({
+        ...task,
+        plan_date: task.plan_date ?? null,
+        not_before: task.not_before ?? null,
+      })),
       settings: data.settings as unknown as Settings,
       corrections: Array.isArray(data.corrections) ? (data.corrections as Correction[]) : [],
     },

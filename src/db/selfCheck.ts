@@ -27,6 +27,7 @@ export async function writeProbeTask(): Promise<Task> {
     est_min: 30,
     due_at: null,
     plan_date: null,
+    not_before: null,
     bucket: 'today',
     bucket_reason: null,
     manual_priority: false,

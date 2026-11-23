@@ -3,6 +3,7 @@ import { db, newTaskId, type Settings, type Task } from './db'
 import { DEFAULT_EST_MIN, nextFittingDate } from '../lib/queue'
 import { dateKey } from '../lib/capacity'
 import { formatClock } from '../lib/time'
+import { extractNotBefore } from '../lib/notBefore'
 import type { ParsedItem } from '../lib/parse'
 
 /** 全部任务（队列页只用 todo，全部页按 bucket 分组；done 进「今天已完成」） */
@@ -32,6 +33,8 @@ export async function createTasksFromLines(lines: string[]): Promise<Task[]> {
     est_min: DEFAULT_EST_MIN,
     due_at: null,
     plan_date: null,
+    // 建卡当时就能从原文算出锚点，不用等模型：八点就是八点
+    not_before: extractNotBefore(line),
     bucket: 'today',
     bucket_reason: null,
     manual_priority: false,
@@ -81,6 +84,8 @@ export async function applyParsedItems(taskIds: string[], items: ParsedItem[]): 
         // 固定事件的 est 是时长：模型没说就留 null，让 computeQueue 用 60 分钟兜底
         est_min: isFixed ? item.est_min : (item.est_min ?? DEFAULT_EST_MIN),
         is_fixed: isFixed,
+        // 固定事件用 start_at 占死时间，锚点必须让位，否则同一条任务有两个开始时刻
+        not_before: isFixed ? null : task.not_before,
         parse_confidence: 1,
       })
     }
